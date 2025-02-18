@@ -1,219 +1,47 @@
-// Modulok importálása
-const express = require('express');
-const cors = require('cors');
-const Joi = require('joi');
-const db = require('./data'); // Importáljuk az adatbázis kapcsolatot
+const Joi = require('joi'); // Joi importálása validációhoz
 
-// Express példány létrehozása
-const app = express();
-const port = 3000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Validációs sémák importálása
-const { employeeSchema, employmentContractSchema, equipmentSchema } = require('./validation');
-
-// Végpontok az employees táblához
-
-// Új alkalmazott felvitele
-app.post('/api/v1/employees', (req, res) => {
-    const { error } = employeeSchema.validate(req.body);
-    if (error) {
-        return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const { idCardNum, lastName, middleName, firstName, email, pass, job, phoneNumber, homeAddress, taxNum, socialSecNum, dateOfBirth, placeOfBirth, bankAccountNumber, supervisorID } = req.body;
-
-    db.run(`INSERT INTO employees (idCardNum, lastName, middleName, firstName, email, pass, job, phoneNumber, homeAddress, taxNum, socialSecNum, dateOfBirth, placeOfBirth, bankAccountNumber, supervisorID) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [idCardNum, lastName, middleName, firstName, email, pass, job, phoneNumber, homeAddress, taxNum, socialSecNum, dateOfBirth, placeOfBirth, bankAccountNumber, supervisorID],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Új alkalmazott sikeresen hozzáadva', idCardNum });
-            }
-        });
+// employees tábla validációs sémája
+const employeeSchema = Joi.object({
+    idCardNum: Joi.string().max(15).required(), // ID kártyaszám (max 15 karakter, kötelező)
+    lastName: Joi.string().max(50).required(), // Vezetéknév (max 50 karakter, kötelező)
+    middleName: Joi.string().max(50).allow(null, ''), // Középső név (max 50 karakter, opcionális)
+    firstName: Joi.string().max(50).required(), // Keresztnév (max 50 karakter, kötelező)
+    email: Joi.string().email().required(), // Email (érvényes email formátum, kötelező)
+    pass: Joi.string().required(), // Jelszó (kötelező)
+    job: Joi.number().integer().required(), // Munkakör azonosító (egész szám, kötelező)
+    phoneNumber: Joi.string().max(25).allow(null, ''), // Telefonszám (max 25 karakter, opcionális)
+    homeAddress: Joi.number().integer().required(), // Lakcím azonosító (egész szám, kötelező)
+    taxNum: Joi.string().max(20).allow(null, ''), // Adószám (max 20 karakter, opcionális)
+    socialSecNum: Joi.string().max(20).allow(null, ''), // Társadalombiztosítási szám (max 20 karakter, opcionális)
+    dateOfBirth: Joi.date().allow(null, ''), // Születési dátum (opcionális)
+    placeOfBirth: Joi.string().max(255).allow(null, ''), // Születési hely (max 255 karakter, opcionális)
+    bankAccountNumber: Joi.string().max(34).allow(null, ''), // Bankszámlaszám (max 34 karakter, opcionális)
+    supervisorID: Joi.string().max(15).allow(null, '') // Felettes azonosítója (max 15 karakter, opcionális)
 });
 
-// Alkalmazottak lekérése
-app.get('/api/v1/employees', (req, res) => {
-    db.all(`SELECT * FROM employees`, [], (err, rows) => {
-        if (err) return res.status(500).send(err.message);
-        res.send(rows);
-    });
+// employmentcontracts tábla validációs sémája
+const employmentContractSchema = Joi.object({
+    employee: Joi.string().max(15).required(), // Alkalmazott azonosítója (max 15 karakter, kötelező)
+    startDate: Joi.date().required(), // Kezdési dátum (kötelező)
+    endDate: Joi.date().allow(null, ''), // Befejezési dátum (opcionális)
+    hourlyRates: Joi.number().integer().required(), // Órabér (egész szám, kötelező)
+    working_hours: Joi.number().integer().required() // Munkaórák száma (egész szám, kötelező)
 });
 
-// Alkalmazott adatainak frissítése
-app.put('/api/v1/employees/:idCardNum', (req, res) => {
-    const { idCardNum } = req.params;
-    const { error } = employeeSchema.validate(req.body);
-    if (error) {
-        return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const { lastName, middleName, firstName, email, pass, job, phoneNumber, homeAddress, taxNum, socialSecNum, dateOfBirth, placeOfBirth, bankAccountNumber, supervisorID } = req.body;
-
-    db.run(`UPDATE employees SET lastName = ?, middleName = ?, firstName = ?, email = ?, pass = ?, job = ?, phoneNumber = ?, homeAddress = ?, taxNum = ?, socialSecNum = ?, dateOfBirth = ?, placeOfBirth = ?, bankAccountNumber = ?, supervisorID = ? WHERE idCardNum = ?`,
-        [lastName, middleName, firstName, email, pass, job, phoneNumber, homeAddress, taxNum, socialSecNum, dateOfBirth, placeOfBirth, bankAccountNumber, supervisorID, idCardNum],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Alkalmazott adatai frissítve', idCardNum });
-            }
-        });
+// equipment tábla validációs sémája
+const equipmentSchema = Joi.object({
+    equipmentName: Joi.string().max(255).required(), // Eszköz neve (max 255 karakter, kötelező)
+    serial_number: Joi.string().max(255).required(), // Sorozatszám (max 255 karakter, kötelező)
+    purchase_date: Joi.date().required(), // Vásárlás dátuma (kötelező)
+    status: Joi.string().max(255).required(), // Állapot (max 255 karakter, kötelező)
+    employee: Joi.string().max(15).required(), // Alkalmazott azonosítója (max 15 karakter, kötelező)
+    last_service_date: Joi.date().allow(null, ''), // Utolsó szerviz dátuma (opcionális)
+    warranty_expiration: Joi.date().required(), // Garancia lejárata (kötelező)
+    remarks: Joi.string().allow(null, '') // Megjegyzések (opcionális)
 });
 
-// Alkalmazott törlése
-app.delete('/api/v1/employees/:idCardNum', (req, res) => {
-    const { idCardNum } = req.params;
-
-    db.run(`DELETE FROM employees WHERE idCardNum = ?`, [idCardNum],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Alkalmazott törölve' });
-            }
-        });
-});
-
-// Végpontok az employmentcontracts táblához
-
-// Új szerződés felvitele
-app.post('/api/v1/employmentcontracts', (req, res) => {
-    const { error } = employmentContractSchema.validate(req.body);
-    if (error) {
-        return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const { employee, startDate, endDate, hourlyRates, working_hours } = req.body;
-
-    db.run(`INSERT INTO employmentcontracts (employee, startDate, endDate, hourlyRates, working_hours) 
-            VALUES (?, ?, ?, ?, ?)`,
-        [employee, startDate, endDate, hourlyRates, working_hours],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Új szerződés sikeresen hozzáadva', id: this.lastID });
-            }
-        });
-});
-
-// Szerződések lekérése
-app.get('/api/v1/employmentcontracts', (req, res) => {
-    db.all(`SELECT * FROM employmentcontracts`, [], (err, rows) => {
-        if (err) return res.status(500).send(err.message);
-        res.send(rows);
-    });
-});
-
-// Szerződés frissítése
-app.put('/api/v1/employmentcontracts/:contractID', (req, res) => {
-    const { contractID } = req.params;
-    const { error } = employmentContractSchema.validate(req.body);
-    if (error) {
-        return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const { employee, startDate, endDate, hourlyRates, working_hours } = req.body;
-
-    db.run(`UPDATE employmentcontracts SET employee = ?, startDate = ?, endDate = ?, hourlyRates = ?, working_hours = ? WHERE contractID = ?`,
-        [employee, startDate, endDate, hourlyRates, working_hours, contractID],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Szerződés frissítve', contractID });
-            }
-        });
-});
-
-// Szerződés törlése
-app.delete('/api/v1/employmentcontracts/:contractID', (req, res) => {
-    const { contractID } = req.params;
-
-    db.run(`DELETE FROM employmentcontracts WHERE contractID = ?`, [contractID],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Szerződés törölve' });
-            }
-        });
-});
-
-// Végpontok az equipment táblához
-
-// Új eszköz felvitele
-app.post('/api/v1/equipment', (req, res) => {
-    const { error } = equipmentSchema.validate(req.body);
-    if (error) {
-        return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const { equipmentName, serial_number, purchase_date, status, employee, last_service_date, warranty_expiration, remarks } = req.body;
-
-    db.run(`INSERT INTO equipment (equipmentName, serial_number, purchase_date, status, employee, last_service_date, warranty_expiration, remarks) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [equipmentName, serial_number, purchase_date, status, employee, last_service_date, warranty_expiration, remarks],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Új eszköz sikeresen hozzáadva', id: this.lastID });
-            }
-        });
-});
-
-// Eszközök lekérése
-app.get('/api/v1/equipment', (req, res) => {
-    db.all(`SELECT * FROM equipment`, [], (err, rows) => {
-        if (err) return res.status(500).send(err.message);
-        res.send(rows);
-    });
-});
-
-// Eszköz frissítése
-app.put('/api/v1/equipment/:equipmentID', (req, res) => {
-    const { equipmentID } = req.params;
-    const { error } = equipmentSchema.validate(req.body);
-    if (error) {
-        return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const { equipmentName, serial_number, purchase_date, status, employee, last_service_date, warranty_expiration, remarks } = req.body;
-
-    db.run(`UPDATE equipment SET equipmentName = ?, serial_number = ?, purchase_date = ?, status = ?, employee = ?, last_service_date = ?, warranty_expiration = ?, remarks = ? WHERE equipmentID = ?`,
-        [equipmentName, serial_number, purchase_date, status, employee, last_service_date, warranty_expiration, remarks, equipmentID],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Eszköz frissítve', equipmentID });
-            }
-        });
-});
-
-// Eszköz törlése
-app.delete('/api/v1/equipment/:equipmentID', (req, res) => {
-    const { equipmentID } = req.params;
-
-    db.run(`DELETE FROM equipment WHERE equipmentID = ?`, [equipmentID],
-        function (err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ message: 'Eszköz törölve' });
-            }
-        });
-});
-
-// Szerver elindítása a 3000-es porton
-app.listen(port, () => {
-    console.log(`A szerver fut a ${port}-es számú porton.`)
-});
+module.exports = {
+    employeeSchema,
+    employmentContractSchema,
+    equipmentSchema
+};
